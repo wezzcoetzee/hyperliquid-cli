@@ -4,23 +4,27 @@ A command-line trading executor for [Hyperliquid](https://hyperliquid.xyz) perps
 
 ## What it can do
 
-**Account & state**
+### Account & state
+
 - `hl balance` — Get perpetual account balance (account value, margin used, withdrawable, total notional)
 - `hl positions` — List open positions (size, entry, leverage, unrealized PnL, liquidation price)
 - `hl orders` — List open orders (resting limits, triggers, reduce-only flags)
 
-**Trading**
+### Trading
+
 - `hl open <side> <size> <coin>` — Open a position at market price (`side` = `long` | `short`)
 - `hl close <coin> [size]` — Cancel all orders for the coin and close the position at market (reduce-only). Omit `size` for a full close.
 - `hl set-leverage <coin> <leverage>` — Set leverage for a coin (cross margin)
 
-**Risk management**
+### Risk management
+
 - `hl stop-loss <side> <size> <coin> <triggerPrice>` — Place a trigger stop-loss (reduce-only)
 - `hl take-profit <side> <size> <coin> <triggerPrice>` — Place a trigger take-profit (reduce-only)
 - `hl move-sl <coin> <newPrice>` — Cancel the existing stop-loss for a coin and replace it at a new trigger price
 - `hl cancel-all <coin>` — Cancel every open order for a coin
 
-**Agent integration (built-in)**
+### Agent integration (built-in)
+
 - `--mcp` — Run as an MCP stdio server; every command above becomes a tool
 - `hl mcp add` — Register the CLI as an MCP server with your agent (Claude Code, Cursor, etc.)
 - `hl skills add` — Sync skill files to your agent so it knows how to use the CLI
