@@ -1,0 +1,51 @@
+{
+  "name": "@wezzcoetzee/hyperliquid-cli",
+  "version": "1.0.0",
+  "description": "Command-line trading executor for Hyperliquid perps — open/close positions, manage SL/TP, leverage, balances, and orders.",
+  "type": "module",
+  "bin": {
+    "hl": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "npx tsx src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "postbuild": "echo '#!/usr/bin/env node' | cat - dist/index.js > dist/index.js.tmp && mv dist/index.js.tmp dist/index.js && chmod +x dist/index.js",
+    "lint": "npx tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "hyperliquid",
+    "cli",
+    "trading",
+    "perps",
+    "dex",
+    "crypto"
+  ],
+  "author": "Wesley Coetzee",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wezzcoetzee/hyperliquid-cli.git"
+  },
+  "homepage": "https://github.com/wezzcoetzee/hyperliquid-cli#readme",
+  "bugs": {
+    "url": "https://github.com/wezzcoetzee/hyperliquid-cli/issues"
+  },
+  "dependencies": {
+    "@nktkas/hyperliquid": "^0.32.1",
+    "incur": "^0.3.4",
+    "viem": "^2.47.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}
