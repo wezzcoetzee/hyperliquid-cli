@@ -7,9 +7,6 @@ on:
     types: [published]
   workflow_dispatch:
 
-env:
-  REGISTRY: 192.168.1.239:5000
-
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -30,91 +27,14 @@ jobs:
       - name: Test
         run: npm test
 
-  deploy:
-    if: github.event_name == 'push'
-    needs: quality
-    runs-on: [self-hosted, docker]
-
-    env:
-      PROJECT: hyperliquid-cli
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Generate version tag
-        id: version
-        run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          TAG="v$(date -u +%Y.%m.%d-%H%M%S)-${SHORT_SHA}"
-          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Build Docker image
-        run: |
-          docker build \
-            -t ${{ env.REGISTRY }}/${{ env.PROJECT }}:${{ steps.version.outputs.TAG }} \
-            -t ${{ env.REGISTRY }}/${{ env.PROJECT }}:latest \
-            .
-
-      - name: Push to registry
-        run: |
-          docker push ${{ env.REGISTRY }}/${{ env.PROJECT }}:${{ steps.version.outputs.TAG }}
-          docker push ${{ env.REGISTRY }}/${{ env.PROJECT }}:latest
-
-      - name: Deploy container
-        env:
-          HL_AUTH_TOKEN: ${{ secrets.HL_AUTH_TOKEN }}
-        run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.PROJECT }}:latest \
-            ${{ env.REGISTRY }}/${{ env.PROJECT }}:rollback 2>/dev/null || true
-
-          docker stop ${{ env.PROJECT }} 2>/dev/null || true
-          docker rm -f ${{ env.PROJECT }} 2>/dev/null || true
-
-          docker network create app-network 2>/dev/null || true
-
-          API_ARGS=()
-          if [ -n "$HL_AUTH_TOKEN" ]; then
-            API_ARGS+=(-p ${{ vars.PORT }}:${{ vars.PORT }})
-            API_ARGS+=(-e PORT=${{ vars.PORT }})
-            API_ARGS+=(-e HL_AUTH_TOKEN="$HL_AUTH_TOKEN")
-            API_ARGS+=(-e HL_BIND_HOST=${{ vars.HL_BIND_HOST || '0.0.0.0' }})
-          else
-            echo "HL_AUTH_TOKEN not set — deploying without HTTP API"
-          fi
-
-          docker run -d \
-            --name ${{ env.PROJECT }} \
-            --restart unless-stopped \
-            --network app-network \
-            --memory="128m" \
-            "${API_ARGS[@]}" \
-            -e HYPERLIQUID_PRIVATE_KEY=${{ secrets.HYPERLIQUID_PRIVATE_KEY }} \
-            -v hyperliquid-cli-state:/root/.hyperliquid-cli \
-            ${{ env.REGISTRY }}/${{ env.PROJECT }}:latest
-
-      - name: Health check
-        run: |
-          sleep 5
-          STATUS=$(docker inspect --format='{{.State.Running}}' ${{ env.PROJECT }} 2>/dev/null || echo "false")
-          if [ "$STATUS" != "true" ]; then
-            echo "Container failed to start"
-            docker logs ${{ env.PROJECT }} --tail 20
-            exit 1
-          fi
-
-      - name: Cleanup old images
-        if: success()
-        run: |
-          docker images ${{ env.REGISTRY }}/${{ env.PROJECT }} --format "{{.ID}} {{.Tag}}" \
-            | grep -v latest | grep -v rollback \
-            | tail -n +6 \
-            | awk '{print $1}' \
-            | xargs -r docker rmi -f 2>/dev/null || true
-
   publish:
     if: github.event_name == 'release'
     needs: quality
-    runs-on: [self-hosted, docker]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v6
@@ -122,6 +42,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: npm ci
@@ -135,21 +56,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish to npm.lab
+      - name: Publish to npm
         env:
-          NODE_TLS_REJECT_UNAUTHORIZED: "0"
-          NPM_LAB_PASSWORD: ${{ secrets.NPM_LAB_PASSWORD }}
-        run: |
-          TOKEN=$(curl -sk -X POST "https://npm.lab/-/verdaccio/sec/login" \
-            -H "Content-Type: application/json" \
-            --data-raw "$(jq -n --arg u "wezzcoetzee" --arg p "${NPM_LAB_PASSWORD}" '{username: $u, password: $p}')" \
-            | jq -r '.token')
-          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-            echo "ERROR: Failed to fetch auth token from npm.lab" >&2
-            exit 1
-          fi
-          echo "//npm.lab/:_authToken=${TOKEN}" > .npmrc
-          echo "@wezzcoetzee:registry=https://npm.lab" >> .npmrc
-          echo "//npm.lab/:always-auth=true" >> .npmrc
-          echo "strict-ssl=false" >> .npmrc
-          npm publish --no-git-checks
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
